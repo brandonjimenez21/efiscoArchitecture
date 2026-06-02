@@ -77,3 +77,13 @@ Efisco está diseñado para ser "cloud-native".
 ---
 
 **Efisco ERP** — *Impulsando la ingeniería automotriz a través del software.*
+
+---
+
+## 👥 Autoría y Desarrollo
+
+Este ecosistema de software es un producto comercial cerrado, diseñado y desarrollado por:
+
+*   **Brandon Jimenez** - *Co-Founder & Lead Full-Stack Developer* — [GitHub](https://github.com/brandonjimenez21) | [LinkedIn](https://www.linkedin.com/in/brandon-jimenez-1a124b215/)
+
+> ⚠️ **Nota de Propiedad Intelectual:** El código fuente principal, los modelos de datos avanzados y los servicios de automatización de producción se mantienen en repositorios privados bajo la infraestructura de nuestra organización para proteger los activos comerciales de la empresa. Este repositorio funciona exclusivamente como una vitrina arquitectónica (*showcase*) para la demostración de competencias de ingeniería y diseño de sistemas.
