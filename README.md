@@ -1,89 +1,95 @@
 # Efisco ERP 🔧 - Automotive Management & Automation SaaS
 
-> **Ingeniería de software aplicada a la optimización operativa del sector automotriz.**
+> **Ingeniería de software de alta precisión aplicada a la rentabilidad y automatización del sector automotriz.**
 
-Efisco es una plataforma SaaS de alto rendimiento diseñada para transformar talleres mecánicos en centros operativos eficientes y automatizados. No es solo un gestor de órdenes; es un motor de inteligencia de negocio que automatiza la clasificación de servicios, optimiza márgenes de ganancia y asegura la trazabilidad total de la operación.
+Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en centros operativos inteligentes. A diferencia de un ERP genérico, Efisco integra un **Motor Financiero (Fiscal/Contable)** adaptado a la normativa colombiana de 2026, un **Clasificador de Vehículos** para tarificación dinámica y **OCR con IA** para el control de egresos.
 
 ![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)
 ![Express 5](https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase)
 ![Tailwind v4](https://img.shields.io/badge/Tailwind-v4-06B6D4?style=for-the-badge&logo=tailwind-css)
-![Jest](https://img.shields.io/badge/Jest-Testing-C21325?style=for-the-badge&logo=jest)
+![Tesseract.js](https://img.shields.io/badge/OCR-Tesseract-blue?style=for-the-badge)
+![Meta API](https://img.shields.io/badge/WhatsApp-Meta_API-25D366?style=for-the-badge&logo=whatsapp)
 
 ---
 
-## 🏗️ Arquitectura y Decisiones Técnicas
+## 🏗️ Arquitectura y Blindaje Técnico
 
-El diseño sistémico de Efisco se basa en la **separación de preocupaciones (SoC)** y la **escalabilidad horizontal**.
+El sistema ha evolucionado hacia una arquitectura resiliente y multi-tenant de datos aislados.
 
-### 1. Stack Moderno y Eficiente
-*   **Frontend (React 19 + Vite):** Elegimos React 19 para aprovechar las últimas mejoras en concurrencia y gestión de estados. Vite actúa como el orquestador de compilación para garantizar tiempos de desarrollo mínimos y un bundle de producción optimizado.
-*   **Backend (Node.js + Express 5):** Implementamos Express 5 por su manejo robusto de promesas y middleware, permitiendo una API RESTful limpia y altamente predecible.
-*   **Persistencia (Supabase/PostgreSQL):** La decisión de usar Supabase responde a la necesidad de una infraestructura distribuida con capacidades de tiempo real nativas y un sistema de autenticación integrado que escala sin fricciones.
+### 1. Stack Tecnológico de Vanguardia
+*   **Frontend (React 19 + Zustand):** Uso de Hooks concurrentes y gestión de estado ligero. Interfaz construida con **Tailwind v4** y componentes de **Shadcn/UI**.
+*   **Backend (Node.js + Express 5):** API robusta con manejo nativo de errores y validaciones defensivas.
+*   **Persistencia (Supabase/PostgreSQL):** Esquema físico optimizado con **CHECK CONSTRAINTS** para integridad de datos y disparadores atómicos para stock.
 
-### 2. Diseño Multi-Tenant
-La arquitectura es inherentemente multi-usuario. Cada petición es interceptada por un middleware de seguridad que inyecta un `workshop_id` basado en el contexto del usuario autenticado, garantizando el aislamiento total de datos entre diferentes talleres a nivel de aplicación.
-
----
-
-## 📈 Ingeniería de Negocio: El "Pricing Engine"
-
-A diferencia de los ERPs tradicionales, Efisco incluye un motor de lógica algorítmica para la toma de decisiones:
-
-*   **Clasificador Dinámico:** El sistema clasifica vehículos (Gama Alta/Normal) y niveles de servicio (Premium/Básico) basándose en la marca, procedencia y antigüedad del vehículo.
-*   **Estrategia de Márgenes Inversos:** Implementamos una lógica de márgenes dinámicos en inventario:
-    - Costos bajos (500-1000): **125% de margen**.
-    - Costos críticos (500k-1M): **10% de margen**.
-    Esto asegura competitividad en el mercado mientras maximiza la utilidad en consumibles de alta rotación.
+### 2. Resoluciones Críticas de Sincronización
+*   **Mirror Mapping (Paridad de Esquema):** Implementación de una capa de compatibilidad en el controlador de taller para sincronizar automáticamente columnas duplicadas (`is_responsible_vat` ↔ `is_responsable_iva`, `iva_percentage` ↔ `vat_percentage`).
+*   **Normalización Estricta de Tiers:** Clasificación forzada de servicios a **"Premium"** o **"Básico"**, garantizando compatibilidad absoluta con las restricciones de la base de datos.
+*   **Blindaje WhatsApp (Meta Cloud API):** Sanitización extrema de teléfonos y manejo elegante de la ventana de 24h de Meta, evitando errores 500 y mejorando la UX del administrador.
 
 ---
 
-## 🛡️ Calidad de Código y Seguridad
+## 📈 Inteligencia de Negocio: El "Financial Engine"
 
-La integridad operativa es nuestra prioridad número uno.
+El núcleo de Efisco es su motor de cálculos puras (`financialEngine.js`):
 
-### 1. Validación Estricta de Datos
-Implementamos una capa de validación en `backend/utils/validators.js` que utiliza expresiones regulares avanzadas para asegurar que los datos técnicos (medidas de frenos, lubricantes, sistemas eléctricos) sigan estándares industriales antes de tocar la base de datos.
+### 1. Liquidación Fiscal (Normativa Colombia 2026)
+*   **Régimen Ordinario vs Simple:** Desglose automático de IVA (19%), ReteIVA (15%), ReteFuente (basado en topes de 4 y 27 UVT) y ReteICA municipal.
+*   **Saldo Real Bancario:** Cálculo de liquidez neta restando el efectivo en cuenta de la **Responsabilidad Fiscal (IVA Final)**.
 
-### 2. Seguridad de Nivel Industrial
-*   **Protección de Endpoints:** Middleware `requireAuth` que valida tokens JWT contra el servidor de Supabase en cada request.
-*   **Aislamiento Operativo:** No se permite la manipulación de IDs de taller desde el cliente; el servidor determina la propiedad de los datos mediante el token de sesión.
+### 2. Integración de Pasarelas de Pago
+*   **Bold:** Soporte para tasas físicas (2.99% + 300) y online (3.49% + 900) con desglose de IVA plataforma.
+*   **Addi:** Aplicación de comisiones en el rango 9-12%.
 
-### 3. Pruebas Automatizadas (Unit Testing)
-Mantenemos una suite de pruebas con **Jest** y **Supertest** enfocada en los núcleos críticos del sistema:
-- ✅ Cálculo exacto de utilidades y márgenes.
-- ✅ Clasificación correcta de tiers de servicio.
-- ✅ Integridad de las rutas protegidas.
+### 3. Flujo de Egresos y OCR
+*   **Procesamiento OCR:** Integración de **Tesseract.js** para escanear facturas de proveedores, extrayendo NIT y valores totales automáticamente.
+*   **Compras Automatizadas:** Registro de egresos con impacto inmediato en el **Libro Auxiliar (PUC)** y actualización de stock.
+
+---
+
+## 🛠️ Módulos Operativos Implementados
+
+| Módulo | Estado | Funcionalidad Clave |
+| :--- | :--- | :--- |
+| **Recepción Express** | ✅ 100% | Registro rápido, envío de plantillas WhatsApp (Meta) y cola de espera. |
+| **Bahía de Servicios** | ✅ 100% | Control de tiempos, asignación de mecánicos y selección de piezas de inventario. |
+| **Clasificador IA** | ✅ 100% | Asignación automática de Tiers (Premium/Básico) según marca y antigüedad. |
+| **Facturación (Settle)** | ✅ 100% | Cierre contable atómico, registro en Ledger y descuento de stock. |
+| **Inventario Pro** | ✅ 90% | Stock en tiempo real, alertas de stock mínimo y trazabilidad de piezas. |
+| **Dashboard Financiero** | ✅ 100% | Salud económica, margen operativo bruto y pasivos fiscales consolidados. |
+| **OCR Proveedores** | ✅ 100% | Escaneo de facturas y automatización de cuentas por pagar. |
+
+---
+
+## 🚀 Lo que falta (Roadmap)
+
+### Backend (Próximas Fases)
+*   **Integración Dataico:** Envío de XML para Facturación Electrónica DIAN definitiva.
+*   **Generación de PDFs:** Creación dinámica de Comprobantes de Ingreso y Ordenes de Trabajo impresas.
+*   **Módulo de Nómina:** Cálculo automático de comisiones por mecánico basado en servicios finalizados.
+
+### Frontend (Mejoras de UX)
+*   **Visualización de Gráficas:** Implementación de gráficos de barras/torta en el Dashboard Financiero (Recharts).
+*   **Historial Detallado:** Vista expandida de órdenes pasadas con filtros por fecha y placa.
+*   **Notificaciones Push:** Alertas en tiempo real para mecánicos cuando se les asigna una nueva orden.
+
+---
+
+## 🛠️ Ejecución y Pruebas
 
 ```bash
-# Ejecutar suite de pruebas de ingeniería
-cd backend && pnpm test
+# Servidor Backend (0.0.0.0:3000)
+cd backend && pnpm dev
+
+# Cliente Frontend (Vite)
+cd frontend && pnpm dev
+
+# Suite de Validación Financiera
+cd backend && pnpm test tests/billing.test.js
+cd backend && pnpm test tests/vehicleClassifier.test.js
+cd backend && pnpm test tests/providerPurchase.test.js
 ```
 
 ---
 
-## 🚀 Despliegue y Ejecución
-
-Efisco está diseñado para ser "cloud-native".
-
-### Requisitos
-- Node.js v18 o superior.
-- Una instancia de Supabase configurada con el esquema relacional de Efisco.
-
-### Setup Rápido
-1.  **Backend:** Instala dependencias y configura las variables de entorno (`SUPABASE_URL`, `SUPABASE_KEY`).
-2.  **Frontend:** Inicia el servidor de desarrollo con `pnpm dev`.
-
----
-
 **Efisco ERP** — *Impulsando la ingeniería automotriz a través del software.*
-
----
-
-## 👥 Autoría y Desarrollo
-
-Este ecosistema de software es un producto comercial cerrado, diseñado y desarrollado por:
-
-*   **Brandon Jimenez** - *Co-Founder & Lead Full-Stack Developer* — [GitHub](https://github.com/brandonjimenez21) | [LinkedIn](https://www.linkedin.com/in/brandon-jimenez-1a124b215/)
-
-> ⚠️ **Nota de Propiedad Intelectual:** El código fuente principal, los modelos de datos avanzados y los servicios de automatización de producción se mantienen en repositorios privados bajo la infraestructura de nuestra organización para proteger los activos comerciales de la empresa. Este repositorio funciona exclusivamente como una vitrina arquitectónica (*showcase*) para la demostración de competencias de ingeniería y diseño de sistemas.
