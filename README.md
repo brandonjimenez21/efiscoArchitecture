@@ -8,7 +8,7 @@ Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en 
 ![Express 5](https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase)
 ![Tailwind v4](https://img.shields.io/badge/Tailwind-v4-06B6D4?style=for-the-badge&logo=tailwind-css)
-![Tesseract.js](https://img.shields.io/badge/OCR-Tesseract-blue?style=for-the-badge)
+![AWS Textract](https://img.shields.io/badge/OCR-AWS_Textract-orange?style=for-the-badge)
 ![Meta API](https://img.shields.io/badge/WhatsApp-Meta_API-25D366?style=for-the-badge&logo=whatsapp)
 
 ---
@@ -42,7 +42,7 @@ El núcleo de Efisco es su motor de cálculos puras (`financialEngine.js`):
 *   **Addi:** Aplicación de comisiones en el rango 9-12%.
 
 ### 3. Flujo de Egresos y OCR
-*   **Procesamiento OCR:** Integración de **Tesseract.js** para escanear facturas de proveedores, extrayendo NIT y valores totales automáticamente.
+*   **Procesamiento OCR:** Integración de **AWS Textract** para escanear facturas de proveedores, extrayendo NIT y valores totales automáticamente.
 *   **Compras Automatizadas:** Registro de egresos con impacto inmediato en el **Libro Auxiliar (PUC)** y actualización de stock.
 
 ---
@@ -61,7 +61,7 @@ El núcleo de Efisco es su motor de cálculos puras (`financialEngine.js`):
 
 ---
 
-## 🚀 Lo que falta (Roadmap)
+## 🚀 Lo que nos falta (Roadmap)
 
 ### Backend (Próximas Fases)
 *   **Integración Dataico:** Envío de XML para Facturación Electrónica DIAN definitiva.
@@ -72,23 +72,6 @@ El núcleo de Efisco es su motor de cálculos puras (`financialEngine.js`):
 *   **Visualización de Gráficas:** Implementación de gráficos de barras/torta en el Dashboard Financiero (Recharts).
 *   **Historial Detallado:** Vista expandida de órdenes pasadas con filtros por fecha y placa.
 *   **Notificaciones Push:** Alertas en tiempo real para mecánicos cuando se les asigna una nueva orden.
-
----
-
-## 🛠️ Ejecución y Pruebas
-
-```bash
-# Servidor Backend (0.0.0.0:3000)
-cd backend && pnpm dev
-
-# Cliente Frontend (Vite)
-cd frontend && pnpm dev
-
-# Suite de Validación Financiera
-cd backend && pnpm test tests/billing.test.js
-cd backend && pnpm test tests/vehicleClassifier.test.js
-cd backend && pnpm test tests/providerPurchase.test.js
-```
 
 ---
 
