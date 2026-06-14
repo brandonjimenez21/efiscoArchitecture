@@ -21,139 +21,145 @@ El sistema utiliza una arquitectura multi-tenant con aislamiento de datos a nive
 
 ```mermaid
 graph LR
-    %% Definición de Estilos Minimalistas (Fondo Transparente)
+    %% Estilos Globales Minimalistas (Fondos Transparentes)
+    classDef default stroke:#455a64,stroke-width:1px,fill:none;
+    classDef highlight stroke:#0052cc,stroke-width:2px,fill:none;
+    classDef engine stroke:#d9480f,stroke-width:1.5px,stroke-dasharray: 3 3,fill:none;
+    classDef database stroke:#212529,stroke-width:2px,fill:none;
+    classDef external stroke:#5f3dc4,stroke-width:1.5px,fill:none;
     classDef user stroke:#90a4ae,stroke-width:2px,stroke-dasharray: 5 5,fill:none;
-    classDef client stroke:#0288d1,stroke-width:2px,fill:none;
-    classDef logic stroke:#fbc02d,stroke-width:2px,fill:none;
-    classDef storage stroke:#2e7d32,stroke-width:2px,fill:none;
-    classDef external stroke:#7b1fa2,stroke-width:2px,fill:none;
 
-    User((Usuario Taller)) --> Capa1
+    %% Flujo Inicial de Acceso
+    User((Usuario)) --> FE[Frontend React 19]
+    FE --> Auth[Middleware: JWT/RLS]
 
-    subgraph Capa1 ["1. Capa de Cliente & Acceso"]
-        Frontend[Frontend: React 19 + Zustand] --> Auth[JWT Auth + Workshop Isolation]
-    end
-    class Frontend,Auth client;
-
-    subgraph Capa2 ["2. Núcleo de Aplicación (Express 5)"]
-        BackendRouter{API Gateway Router}
+    %% Capa Central: Backend y sus Motores Relacionados
+    subgraph Core [Backend Core - Express 5]
+        Auth --> Ops[Módulo Operativo]
+        Auth --> Inv[Módulo Logístico]
+        Auth --> Fin[Módulo Financiero]
         
-        subgraph Modulos ["Módulos de Negocio"]
-            Ops[Operaciones: Recepción/Bahía]
-            Inv[Logística: Inventario/Kardex]
-            Fin[Contabilidad: Liquidación/PUC]
-        end
-        
-        subgraph Motores ["Motores de Inteligencia & Reglas"]
-            VClass[VehicleClassifier: Tiering]
-            OCR[OCR IA: AWS Textract]
-            FE[FinancialEngine: DIAN 2026]
-        end
-
-        BackendRouter --> Ops & Inv & Fin
-        Ops --> VClass
-        Inv --> OCR
-        Fin --> FE
+        %% Conexiones verticales directas con sus respectivos motores
+        Ops --- VClass[Vehicle Classifier]
+        Inv --- OCR[AWS Textract]
+        Fin --- FEng[Financial Engine]
     end
-    class BackendRouter,Ops,Inv,Fin,VClass,OCR,FE logic;
 
-    subgraph Capa3 ["3. Capa de Datos (Supabase/PostgreSQL)"]
-        DB[(Database: Multi-tenant Schema)] --> Trig[Atomic Triggers: Stock/Audit]
-        DB --> Ledger[Cash Flow Ledger: Inmutable]
+    %% Capa de Datos y Persistencia
+    subgraph Data [Persistencia - Supabase]
+        DB[(PostgreSQL Master)] --> Kardex[[Ledger Inmutable]]
     end
-    class DB,Trig,Ledger storage;
 
-    subgraph Capa4 ["4. Ecosistema Externo e Integraciones"]
-        Pay[Pasarelas: Bold/Addi]
-        DIAN[Facturación: Dataico]
-        WA[Notificaciones: Meta API]
+    %% Capa de Servicios Externos
+    subgraph Externals [Servicios Externos]
+        WA[WhatsApp API]
+        Pay[Pasarelas Bold/Addi]
+        DIAN[Dataico DIAN]
     end
-    class Pay,DIAN,WA external;
 
-    %% --- FLUJO ESTRUCTURADO ENTRE CAPAS ---
-    Capa1 --> Capa2
-    Capa2 --> Capa3
-    Capa2 --> Capa4
+    %% Enlaces Estructurados entre Capas (Evita cruces caóticos)
+    Ops & Inv & Fin ----> DB
+    Ops --> WA
+    Fin --> Pay
+    Fin --> DIAN
 
-    %% Aplicación de Estilo Especial a Usuario
+    %% Asignación de Estilos
     class User user;
+    class FE,Auth,Ops,Inv,Fin highlight;
+    class VClass,OCR,FEng engine;
+    class DB,Kardex database;
+    class WA,Pay,DIAN external;
 ```
 
 ---
 
 ## 🔄 Ciclo de Vida Operativo (End-to-End)
 
-Desde la recepción del vehículo hasta el cierre contable, cada paso está sincronizado con el motor financiero.
+Flujo de ejecución con gestión de estados y activaciones síncronas. La proximidad de servicios externos evita cruces visuales.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as Cliente/Vehículo
-    participant R as Recepción (QuickIntake)
-    participant B as Bahía (WorkOrder)
-    participant I as Inventario (Kardex)
-    participant F as Finanzas (Settlement)
+    participant C as Cliente
+    participant R as Recepción
+    participant WA as WhatsApp (Meta)
+    participant B as Bahía (Ops)
+    participant I as Inventario
+    participant F as Finanzas
+    participant EXT as Externos (DIAN/Pay)
+    participant DB as Persistencia (DB)
 
     C->>R: Ingreso (Reporte de Fallo)
-    R->>WA: Notificar al Cliente (Meta API)
+    activate R
+    R->>WA: Notificar al Cliente
     R->>B: Convertir a Orden de Trabajo
-    Note over B: El VehicleClassifier asigna Tier (Básico/Premium)
+    activate B
+    Note over B: El Classifier asigna Tier (Básico/Premium)
+    deactivate R
     
     loop Durante el Servicio
         B->>I: Solicitar Repuesto
-        I->>I: Validar Stock & Categoría
-        I-->>B: Descontar Stock (Atomic Sync)
-        B->>B: Acumular Costo de Mano de Obra e Inventario
+        activate I
+        I->>DB: Validar Stock & TX
+        DB-->>I: Confirmación
+        I-->>B: Item Entregado
+        deactivate I
+        B->>B: Acumular Costos
     end
     
-    B->>F: Finalizar y Liquidar Orden
-    F->>FE: Procesar FinancialEngine (Impuestos/Comisiones)
-    F->>Ledger: Insertar Movimientos PUC (INC_GROSS, TAX_IVA)
-    F->>Dataico: Generar Factura Electrónica
-    F->>C: Vehículo Entregado + Factura WhatsApp
+    B->>F: Finalizar y Liquidar
+    activate F
+    deactivate B
+    
+    rect rgb(0, 0, 0)
+        Note over F, DB: Proceso de Cierre Contable (Fiscal 2026)
+        F->>F: Calcular FinancialEngine
+        F->>DB: Insertar Movimientos Ledger
+        F->>EXT: Emitir Factura & Procesar Pago
+    end
+    
+    F->>C: Vehículo Listo + Factura Digital
+    deactivate F
 ```
 
 ---
 
 ## 📦 Lógica de Inventario y Kardex Inmutable
 
-Trazabilidad total: cada tornillo está vinculado a un proveedor y a una orden de trabajo.
+Trazabilidad total: cada movimiento físico genera un reflejo contable obligatorio en la base de datos.
 
 ```mermaid
 graph LR
     subgraph "Entrada (Abastecimiento)"
         Purchase[Compra a Proveedor] --> OCR_P[OCR: Extraer Factura]
         OCR_P --> Inv_Up[Update: current_stock]
-        Inv_Up --> Tx_In[Transaction: type=invoice]
     end
 
-    subgraph "Estado del Almacén"
+    subgraph "Persistencia (Base de Datos)"
         Inv_Up --> Master[(Inventario Maestro)]
+        Inv_Up --> Kardex[[Historial Kardex Inmutable]]
         Master --> Alerts{Stock < Min?}
-        Alerts --> Dashboard[Notificación Low Stock]
     end
 
     subgraph "Salida (Operación)"
         WO[Work Order] --> Add_Item[Añadir Repuesto]
         Add_Item --> Pricing[PricingEngine: IA Margin]
         Pricing --> Inv_Down[Update: current_stock]
-        Inv_Down --> Tx_Out[Transaction: type=service_out]
+        Inv_Down --> Kardex
     end
 
-    Tx_In & Tx_Out --> Kardex[[Historial Kardex por Ítem]]
+    Alerts --> Dashboard[Notificación Low Stock]
 ```
 
 ---
 
 ## 📊 Motor Financiero (FinancialEngine.js)
 
-El cerebro de Efisco implementa la lógica fiscal colombiana 2026.
-
 ### 1. Matriz de Decisión de Liquidación
 
 ```mermaid
 flowchart TD
-    Start([Inicio Liquidación]) --> Data[Cargar: Labor + Parts + WorkshopConfig]
+    Start([Inicio Liquidación]) --> Data[Cargar: Labor + Parts + Config]
     Data --> Tier{Tier del Servicio?}
     
     Tier -- Premium --> PM[Aplicar Margen Premium: ~10%]
@@ -164,15 +170,15 @@ flowchart TD
     IVA --> Total[Total Factura]
     
     Total --> Gateway{Usa Pasarela?}
-    Gateway -- Bold/Addi --> Comm[Calcular Comisión + IVA Plataforma]
+    Gateway -- Bold/Addi --> Comm[Calcular Comisión + IVA]
     Gateway -- Efectivo --> NoComm[Cero Comisión]
     
     Comm & NoComm --> Rets{Agente Retenedor?}
     Rets -- Sí --> CalcRets[ReteIVA 15% / ReteFuente / ReteICA]
     Rets -- No --> ZeroRets[Sin Retenciones]
     
-    CalcRets & ZeroRets --> Ledger[(Registro Ledger Atómico)]
-    Ledger --> Result[Net Cash Inflow + Real Bank Balance]
+    CalcRets & ZeroRets --> DB[(Persistencia Ledger Atómico)]
+    DB --> Result[Net Cash Inflow + Real Bank Balance]
 ```
 
 ---
