@@ -13,66 +13,197 @@ Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en 
 
 ---
 
-## 🏗️ Arquitectura y Blindaje Técnico
+## 🏗️ Arquitectura de Sistema y Blindaje Técnico
 
-El sistema ha evolucionado hacia una arquitectura resiliente y multi-tenant de datos aislados.
+El sistema utiliza una arquitectura multi-tenant con aislamiento de datos a nivel de fila (RLS) y un núcleo de cálculo financiero inmutable.
 
-### 1. Stack Tecnológico de Vanguardia
-*   **Frontend (React 19 + Zustand):** Uso de Hooks concurrentes y gestión de estado ligero. Interfaz construida con **Tailwind v4** y componentes de **Shadcn/UI**.
-*   **Backend (Node.js + Express 5):** API robusta con manejo nativo de errores y validaciones defensivas.
-*   **Persistencia (Supabase/PostgreSQL):** Esquema físico optimizado con **CHECK CONSTRAINTS** para integridad de datos y disparadores atómicos para stock.
+### 1. Mapa de Componentes y Capas
 
-### 2. Resoluciones Críticas de Sincronización
-*   **Mirror Mapping (Paridad de Esquema):** Implementación de una capa de compatibilidad en el controlador de taller para sincronizar automáticamente columnas duplicadas (`is_responsible_vat` ↔ `is_responsable_iva`, `iva_percentage` ↔ `vat_percentage`).
-*   **Normalización Estricta de Tiers:** Clasificación forzada de servicios a **"Premium"** o **"Básico"**, garantizando compatibilidad absoluta con las restricciones de la base de datos.
-*   **Blindaje WhatsApp (Meta Cloud API):** Sanitización extrema de teléfonos y manejo elegante de la ventana de 24h de Meta, evitando errores 500 y mejorando la UX del administrador.
+```mermaid
+graph LR
+    %% Definición de Estilos Minimalistas (Fondo Transparente)
+    classDef user stroke:#90a4ae,stroke-width:2px,stroke-dasharray: 5 5,fill:none;
+    classDef client stroke:#0288d1,stroke-width:2px,fill:none;
+    classDef logic stroke:#fbc02d,stroke-width:2px,fill:none;
+    classDef storage stroke:#2e7d32,stroke-width:2px,fill:none;
+    classDef external stroke:#7b1fa2,stroke-width:2px,fill:none;
+
+    User((Usuario Taller)) --> Capa1
+
+    subgraph Capa1 ["1. Capa de Cliente & Acceso"]
+        Frontend[Frontend: React 19 + Zustand] --> Auth[JWT Auth + Workshop Isolation]
+    end
+    class Frontend,Auth client;
+
+    subgraph Capa2 ["2. Núcleo de Aplicación (Express 5)"]
+        BackendRouter{API Gateway Router}
+        
+        subgraph Modulos ["Módulos de Negocio"]
+            Ops[Operaciones: Recepción/Bahía]
+            Inv[Logística: Inventario/Kardex]
+            Fin[Contabilidad: Liquidación/PUC]
+        end
+        
+        subgraph Motores ["Motores de Inteligencia & Reglas"]
+            VClass[VehicleClassifier: Tiering]
+            OCR[OCR IA: AWS Textract]
+            FE[FinancialEngine: DIAN 2026]
+        end
+
+        BackendRouter --> Ops & Inv & Fin
+        Ops --> VClass
+        Inv --> OCR
+        Fin --> FE
+    end
+    class BackendRouter,Ops,Inv,Fin,VClass,OCR,FE logic;
+
+    subgraph Capa3 ["3. Capa de Datos (Supabase/PostgreSQL)"]
+        DB[(Database: Multi-tenant Schema)] --> Trig[Atomic Triggers: Stock/Audit]
+        DB --> Ledger[Cash Flow Ledger: Inmutable]
+    end
+    class DB,Trig,Ledger storage;
+
+    subgraph Capa4 ["4. Ecosistema Externo e Integraciones"]
+        Pay[Pasarelas: Bold/Addi]
+        DIAN[Facturación: Dataico]
+        WA[Notificaciones: Meta API]
+    end
+    class Pay,DIAN,WA external;
+
+    %% --- FLUJO ESTRUCTURADO ENTRE CAPAS ---
+    Capa1 --> Capa2
+    Capa2 --> Capa3
+    Capa2 --> Capa4
+
+    %% Aplicación de Estilo Especial a Usuario
+    class User user;
+```
 
 ---
 
-## 📈 Inteligencia de Negocio: El "Financial Engine"
+## 🔄 Ciclo de Vida Operativo (End-to-End)
 
-El núcleo de Efisco es su motor de cálculos puras (`financialEngine.js`):
+Desde la recepción del vehículo hasta el cierre contable, cada paso está sincronizado con el motor financiero.
 
-### 1. Liquidación Fiscal (Normativa Colombia 2026)
-*   **Régimen Ordinario vs Simple:** Desglose automático de IVA (19%), ReteIVA (15%), ReteFuente (basado en topes de 4 y 27 UVT) y ReteICA municipal.
-*   **Saldo Real Bancario:** Cálculo de liquidez neta restando el efectivo en cuenta de la **Responsabilidad Fiscal (IVA Final)**.
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente/Vehículo
+    participant R as Recepción (QuickIntake)
+    participant B as Bahía (WorkOrder)
+    participant I as Inventario (Kardex)
+    participant F as Finanzas (Settlement)
 
-### 2. Integración de Pasarelas de Pago
-*   **Bold:** Soporte para tasas físicas (2.99% + 300) y online (3.49% + 900) con desglose de IVA plataforma.
-*   **Addi:** Aplicación de comisiones en el rango 9-12%.
-
-### 3. Flujo de Egresos y OCR
-*   **Procesamiento OCR:** Integración de **AWS Textract** para escanear facturas de proveedores, extrayendo NIT y valores totales automáticamente.
-*   **Compras Automatizadas:** Registro de egresos con impacto inmediato en el **Libro Auxiliar (PUC)** y actualización de stock.
+    C->>R: Ingreso (Reporte de Fallo)
+    R->>WA: Notificar al Cliente (Meta API)
+    R->>B: Convertir a Orden de Trabajo
+    Note over B: El VehicleClassifier asigna Tier (Básico/Premium)
+    
+    loop Durante el Servicio
+        B->>I: Solicitar Repuesto
+        I->>I: Validar Stock & Categoría
+        I-->>B: Descontar Stock (Atomic Sync)
+        B->>B: Acumular Costo de Mano de Obra e Inventario
+    end
+    
+    B->>F: Finalizar y Liquidar Orden
+    F->>FE: Procesar FinancialEngine (Impuestos/Comisiones)
+    F->>Ledger: Insertar Movimientos PUC (INC_GROSS, TAX_IVA)
+    F->>Dataico: Generar Factura Electrónica
+    F->>C: Vehículo Entregado + Factura WhatsApp
+```
 
 ---
 
-## 🛠️ Módulos Operativos Implementados
+## 📦 Lógica de Inventario y Kardex Inmutable
 
-| Módulo | Estado | Funcionalidad Clave |
+Trazabilidad total: cada tornillo está vinculado a un proveedor y a una orden de trabajo.
+
+```mermaid
+graph LR
+    subgraph "Entrada (Abastecimiento)"
+        Purchase[Compra a Proveedor] --> OCR_P[OCR: Extraer Factura]
+        OCR_P --> Inv_Up[Update: current_stock]
+        Inv_Up --> Tx_In[Transaction: type=invoice]
+    end
+
+    subgraph "Estado del Almacén"
+        Inv_Up --> Master[(Inventario Maestro)]
+        Master --> Alerts{Stock < Min?}
+        Alerts --> Dashboard[Notificación Low Stock]
+    end
+
+    subgraph "Salida (Operación)"
+        WO[Work Order] --> Add_Item[Añadir Repuesto]
+        Add_Item --> Pricing[PricingEngine: IA Margin]
+        Pricing --> Inv_Down[Update: current_stock]
+        Inv_Down --> Tx_Out[Transaction: type=service_out]
+    end
+
+    Tx_In & Tx_Out --> Kardex[[Historial Kardex por Ítem]]
+```
+
+---
+
+## 📊 Motor Financiero (FinancialEngine.js)
+
+El cerebro de Efisco implementa la lógica fiscal colombiana 2026.
+
+### 1. Matriz de Decisión de Liquidación
+
+```mermaid
+flowchart TD
+    Start([Inicio Liquidación]) --> Data[Cargar: Labor + Parts + WorkshopConfig]
+    Data --> Tier{Tier del Servicio?}
+    
+    Tier -- Premium --> PM[Aplicar Margen Premium: ~10%]
+    Tier -- Básico --> BM[Aplicar Margen Básico: ~5%]
+    
+    PM & BM --> Base[Base Impositiva]
+    Base --> IVA[Cálculo IVA: 19% si aplica]
+    IVA --> Total[Total Factura]
+    
+    Total --> Gateway{Usa Pasarela?}
+    Gateway -- Bold/Addi --> Comm[Calcular Comisión + IVA Plataforma]
+    Gateway -- Efectivo --> NoComm[Cero Comisión]
+    
+    Comm & NoComm --> Rets{Agente Retenedor?}
+    Rets -- Sí --> CalcRets[ReteIVA 15% / ReteFuente / ReteICA]
+    Rets -- No --> ZeroRets[Sin Retenciones]
+    
+    CalcRets & ZeroRets --> Ledger[(Registro Ledger Atómico)]
+    Ledger --> Result[Net Cash Inflow + Real Bank Balance]
+```
+
+---
+
+## 🛠️ Stack Tecnológico de Alto Rendimiento
+
+| Capa | Tecnología | Propósito |
 | :--- | :--- | :--- |
-| **Recepción Express** | ✅ 100% | Registro rápido, envío de plantillas WhatsApp (Meta) y cola de espera. |
-| **Bahía de Servicios** | ✅ 100% | Control de tiempos, asignación de mecánicos y selección de piezas de inventario. |
-| **Clasificador IA** | ✅ 100% | Asignación automática de Tiers (Premium/Básico) según marca y antigüedad. |
-| **Facturación (Settle)** | ✅ 100% | Cierre contable atómico, registro en Ledger y descuento de stock. |
-| **Inventario Pro** | ✅ 90% | Stock en tiempo real, alertas de stock mínimo y trazabilidad de piezas. |
-| **Dashboard Financiero** | ✅ 100% | Salud económica, margen operativo bruto y pasivos fiscales consolidados. |
-| **OCR Proveedores** | ✅ 100% | Escaneo de facturas y automatización de cuentas por pagar. |
+| **UI Framework** | React 19 (Beta) | Reactividad ultra-rápida y concurrencia. |
+| **Styles** | Tailwind CSS v4 | Diseño atómico y optimización de bundle. |
+| **State** | Zustand | Gestión de estado ligero y escalable. |
+| **Backend** | Express 5 + Node.js | API robusta con soporte nativo para promesas. |
+| **Database** | Supabase (PostgreSQL) | Persistencia, RLS y Webhooks en tiempo real. |
+| **AI/OCR** | AWS Textract | Extracción de datos de facturas de proveedores. |
+| **Comms** | Meta WhatsApp Cloud API | Comunicación automatizada con el cliente. |
 
 ---
 
-## 🚀 Lo que nos falta (Roadmap)
+## 🚀 Ejecución y Pruebas
 
-### Backend (Próximas Fases)
-*   **Integración Dataico:** Envío de XML para Facturación Electrónica DIAN definitiva.
-*   **Generación de PDFs:** Creación dinámica de Comprobantes de Ingreso y Ordenes de Trabajo impresas.
-*   **Módulo de Nómina:** Cálculo automático de comisiones por mecánico basado en servicios finalizados.
+```bash
+# Servidor Backend (0.0.0.0:3000)
+cd backend && pnpm dev
 
-### Frontend (Mejoras de UX)
-*   **Visualización de Gráficas:** Implementación de gráficos de barras/torta en el Dashboard Financiero (Recharts).
-*   **Historial Detallado:** Vista expandida de órdenes pasadas con filtros por fecha y placa.
-*   **Notificaciones Push:** Alertas en tiempo real para mecánicos cuando se les asigna una nueva orden.
+# Cliente Frontend (Vite)
+cd frontend && pnpm dev
+
+# Suite de Pruebas Unitarias (Lógica Financiera y Clasificación)
+cd backend && pnpm test
+```
 
 ---
 
-**Efisco ERP** — *Impulsando la ingeniería automotriz a través del software.*
+**Efisco ERP** — *Impulsando la ingeniería automotriz a través de software de alto rendimiento.*
