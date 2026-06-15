@@ -1,8 +1,8 @@
 # Efisco ERP 🔧 - Automotive Management & Automation SaaS
 
-> **Ingeniería de software de alta precisión aplicada a la rentabilidad y automatización del sector automotriz.**
+> **High-precision software engineering applied to profitability and automation in the automotive sector.**
 
-Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en centros operativos inteligentes. A diferencia de un ERP genérico, Efisco integra un **Motor Financiero (Fiscal/Contable)** adaptado a la normativa colombiana de 2026, un **Clasificador de Vehículos** para tarificación dinámica y **OCR con IA** para el control de egresos.
+Efisco is a SaaS platform designed to transform mechanical workshops into intelligent operational centers. Unlike a generic ERP, Efisco integrates a **Financial Engine (Fiscal/Accounting)** adapted to Colombian regulations (2026), a **Vehicle Classifier** for dynamic pricing, and **AI-powered OCR** for expense control.
 
 ![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)
 ![Express 5](https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express)
@@ -11,17 +11,18 @@ Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en 
 ![AWS Textract](https://img.shields.io/badge/OCR-AWS_Textract-orange?style=for-the-badge)
 ![Meta API](https://img.shields.io/badge/WhatsApp-Meta_API-25D366?style=for-the-badge&logo=whatsapp)
 
+> 🌐 [Leer en Español](./README.es.md)
+
 ---
 
-## 🏗️ Arquitectura de Sistema y Blindaje Técnico
+## 🏗️ System Architecture & Technical Design
 
-El sistema utiliza una arquitectura multi-tenant con aislamiento de datos a nivel de fila (RLS) y un núcleo de cálculo financiero inmutable.
+The system uses a **multi-tenant architecture** with row-level data isolation (RLS) and an immutable financial calculation core.
 
-### 1. Mapa de Componentes y Capas
+### 1. Component & Layer Map
 
 ```mermaid
 graph LR
-    %% Estilos Globales Minimalistas (Fondos Transparentes)
     classDef default stroke:#455a64,stroke-width:1px,fill:none;
     classDef highlight stroke:#0052cc,stroke-width:2px,fill:none;
     classDef engine stroke:#d9480f,stroke-width:1.5px,stroke-dasharray: 3 3,fill:none;
@@ -29,41 +30,34 @@ graph LR
     classDef external stroke:#5f3dc4,stroke-width:1.5px,fill:none;
     classDef user stroke:#90a4ae,stroke-width:2px,stroke-dasharray: 5 5,fill:none;
 
-    %% Flujo Inicial de Acceso
-    User((Usuario)) --> FE[Frontend React 19]
+    User((User)) --> FE[Frontend React 19]
     FE --> Auth[Middleware: JWT/RLS]
 
-    %% Capa Central: Backend y sus Motores Relacionados
     subgraph Core [Backend Core - Express 5]
-        Auth --> Ops[Módulo Operativo]
-        Auth --> Inv[Módulo Logístico]
-        Auth --> Fin[Módulo Financiero]
-        
-        %% Conexiones verticales directas con sus respectivos motores
+        Auth --> Ops[Operations Module]
+        Auth --> Inv[Logistics Module]
+        Auth --> Fin[Finance Module]
+
         Ops --- VClass[Vehicle Classifier]
         Inv --- OCR[AWS Textract]
         Fin --- FEng[Financial Engine]
     end
 
-    %% Capa de Datos y Persistencia
-    subgraph Data [Persistencia - Supabase]
-        DB[(PostgreSQL Master)] --> Kardex[[Ledger Inmutable]]
+    subgraph Data [Persistence - Supabase]
+        DB[(PostgreSQL Master)] --> Kardex[[Immutable Ledger]]
     end
 
-    %% Capa de Servicios Externos
-    subgraph Externals [Servicios Externos]
+    subgraph Externals [External Services]
         WA[WhatsApp API]
-        Pay[Pasarelas Bold/Addi]
+        Pay[Bold/Addi Gateways]
         DIAN[Dataico DIAN]
     end
 
-    %% Enlaces Estructurados entre Capas (Evita cruces caóticos)
     Ops & Inv & Fin ----> DB
     Ops --> WA
     Fin --> Pay
     Fin --> DIAN
 
-    %% Asignación de Estilos
     class User user;
     class FE,Auth,Ops,Inv,Fin highlight;
     class VClass,OCR,FEng engine;
@@ -73,143 +67,158 @@ graph LR
 
 ---
 
-## 🔄 Ciclo de Vida Operativo (End-to-End)
+## 🔄 Operational Lifecycle (End-to-End)
 
-Flujo de ejecución con gestión de estados y activaciones síncronas. La proximidad de servicios externos evita cruces visuales.
+Full execution flow with state management and synchronous activations.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as Cliente
-    participant R as Recepción
+    participant C as Client
+    participant R as Reception
     participant WA as WhatsApp (Meta)
-    participant B as Bahía (Ops)
-    participant I as Inventario
-    participant F as Finanzas
-    participant EXT as Externos (DIAN/Pay)
-    participant DB as Persistencia (DB)
+    participant B as Bay (Ops)
+    participant I as Inventory
+    participant F as Finance
+    participant EXT as External (DIAN/Pay)
+    participant DB as Persistence (DB)
 
-    C->>R: Ingreso (Reporte de Fallo)
+    C->>R: Arrival (Fault Report)
     activate R
-    R->>WA: Notificar al Cliente
-    R->>B: Convertir a Orden de Trabajo
+    R->>WA: Notify Client
+    R->>B: Convert to Work Order
     activate B
-    Note over B: El Classifier asigna Tier (Básico/Premium)
+    Note over B: Classifier assigns Tier (Basic/Premium)
     deactivate R
-    
-    loop Durante el Servicio
-        B->>I: Solicitar Repuesto
+
+    loop During Service
+        B->>I: Request Part
         activate I
-        I->>DB: Validar Stock & TX
-        DB-->>I: Confirmación
-        I-->>B: Item Entregado
+        I->>DB: Validate Stock & TX
+        DB-->>I: Confirmation
+        I-->>B: Item Delivered
         deactivate I
-        B->>B: Acumular Costos
+        B->>B: Accumulate Costs
     end
-    
-    B->>F: Finalizar y Liquidar
+
+    B->>F: Finalize & Settle
     activate F
     deactivate B
-    
+
     rect rgb(0, 0, 0)
-        Note over F, DB: Proceso de Cierre Contable (Fiscal 2026)
-        F->>F: Calcular FinancialEngine
-        F->>DB: Insertar Movimientos Ledger
-        F->>EXT: Emitir Factura & Procesar Pago
+        Note over F, DB: Accounting Close Process (Fiscal 2026)
+        F->>F: Run FinancialEngine
+        F->>DB: Insert Ledger Entries
+        F->>EXT: Issue Invoice & Process Payment
     end
-    
-    F->>C: Vehículo Listo + Factura Digital
+
+    F->>C: Vehicle Ready + Digital Invoice
     deactivate F
 ```
 
 ---
 
-## 📦 Lógica de Inventario y Kardex Inmutable
+## 📦 Inventory Logic & Immutable Kardex
 
-Trazabilidad total: cada movimiento físico genera un reflejo contable obligatorio en la base de datos.
+Full traceability: every physical movement generates a mandatory accounting entry in the database.
 
 ```mermaid
 graph LR
-    subgraph "Entrada (Abastecimiento)"
-        Purchase[Compra a Proveedor] --> OCR_P[OCR: Extraer Factura]
+    subgraph "Input (Supply)"
+        Purchase[Supplier Purchase] --> OCR_P[OCR: Extract Invoice]
         OCR_P --> Inv_Up[Update: current_stock]
     end
 
-    subgraph "Persistencia (Base de Datos)"
-        Inv_Up --> Master[(Inventario Maestro)]
-        Inv_Up --> Kardex[[Historial Kardex Inmutable]]
+    subgraph "Persistence (Database)"
+        Inv_Up --> Master[(Master Inventory)]
+        Inv_Up --> Kardex[[Immutable Kardex History]]
         Master --> Alerts{Stock < Min?}
     end
 
-    subgraph "Salida (Operación)"
-        WO[Work Order] --> Add_Item[Añadir Repuesto]
-        Add_Item --> Pricing[PricingEngine: IA Margin]
+    subgraph "Output (Operations)"
+        WO[Work Order] --> Add_Item[Add Part]
+        Add_Item --> Pricing[PricingEngine: AI Margin]
         Pricing --> Inv_Down[Update: current_stock]
         Inv_Down --> Kardex
     end
 
-    Alerts --> Dashboard[Notificación Low Stock]
+    Alerts --> Dashboard[Low Stock Notification]
 ```
 
 ---
 
-## 📊 Motor Financiero (FinancialEngine.js)
+## 📊 Financial Engine (FinancialEngine.js)
 
-### 1. Matriz de Decisión de Liquidación
+### Settlement Decision Matrix
 
 ```mermaid
 flowchart TD
-    Start([Inicio Liquidación]) --> Data[Cargar: Labor + Parts + Config]
-    Data --> Tier{Tier del Servicio?}
-    
-    Tier -- Premium --> PM[Aplicar Margen Premium: ~10%]
-    Tier -- Básico --> BM[Aplicar Margen Básico: ~5%]
-    
-    PM & BM --> Base[Base Impositiva]
-    Base --> IVA[Cálculo IVA: 19% si aplica]
-    IVA --> Total[Total Factura]
-    
-    Total --> Gateway{Usa Pasarela?}
-    Gateway -- Bold/Addi --> Comm[Calcular Comisión + IVA]
-    Gateway -- Efectivo --> NoComm[Cero Comisión]
-    
-    Comm & NoComm --> Rets{Agente Retenedor?}
-    Rets -- Sí --> CalcRets[ReteIVA 15% / ReteFuente / ReteICA]
-    Rets -- No --> ZeroRets[Sin Retenciones]
-    
-    CalcRets & ZeroRets --> DB[(Persistencia Ledger Atómico)]
+    Start([Start Settlement]) --> Data[Load: Labor + Parts + Config]
+    Data --> Tier{Service Tier?}
+
+    Tier -- Premium --> PM[Apply Premium Margin: ~10%]
+    Tier -- Basic --> BM[Apply Basic Margin: ~5%]
+
+    PM & BM --> Base[Tax Base]
+    Base --> IVA[VAT Calculation: 19% if applicable]
+    IVA --> Total[Invoice Total]
+
+    Total --> Gateway{Payment Gateway?}
+    Gateway -- Bold/Addi --> Comm[Calculate Commission + VAT]
+    Gateway -- Cash --> NoComm[Zero Commission]
+
+    Comm & NoComm --> Rets{Withholding Agent?}
+    Rets -- Yes --> CalcRets[ReteIVA 15% / ReteFuente / ReteICA]
+    Rets -- No --> ZeroRets[No Withholdings]
+
+    CalcRets & ZeroRets --> DB[(Atomic Ledger Persistence)]
     DB --> Result[Net Cash Inflow + Real Bank Balance]
 ```
 
 ---
 
-## 🛠️ Stack Tecnológico de Alto Rendimiento
+## 🛠️ High-Performance Tech Stack
 
-| Capa | Tecnología | Propósito |
+| Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **UI Framework** | React 19 (Beta) | Reactividad ultra-rápida y concurrencia. |
-| **Styles** | Tailwind CSS v4 | Diseño atómico y optimización de bundle. |
-| **State** | Zustand | Gestión de estado ligero y escalable. |
-| **Backend** | Express 5 + Node.js | API robusta con soporte nativo para promesas. |
-| **Database** | Supabase (PostgreSQL) | Persistencia, RLS y Webhooks en tiempo real. |
-| **AI/OCR** | AWS Textract | Extracción de datos de facturas de proveedores. |
-| **Comms** | Meta WhatsApp Cloud API | Comunicación automatizada con el cliente. |
+| **UI Framework** | React 19 (Beta) | Ultra-fast reactivity and concurrency |
+| **Styles** | Tailwind CSS v4 | Atomic design and bundle optimization |
+| **State** | Zustand | Lightweight and scalable state management |
+| **Backend** | Express 5 + Node.js | Robust API with native promise support |
+| **Database** | Supabase (PostgreSQL) | Persistence, RLS and real-time Webhooks |
+| **AI/OCR** | AWS Textract | Data extraction from supplier invoices |
+| **Comms** | Meta WhatsApp Cloud API | Automated client communication |
 
 ---
 
-## 🚀 Ejecución y Pruebas
+## 🔑 Key Technical Decisions
+
+- **Multi-tenant with RLS** — Row-level security in PostgreSQL ensures complete data isolation between workshops without separate databases.
+- **Immutable Ledger** — Every financial movement is append-only. No record is ever updated or deleted, guaranteeing full accounting auditability.
+- **Async OCR pipeline** — Supplier invoice processing runs in the background via AWS Textract, keeping the UI responsive.
+- **Dynamic tier pricing** — The Vehicle Classifier automatically assigns service tiers, enabling margin control without manual configuration per service.
+
+---
+
+## 🚀 Getting Started
 
 ```bash
-# Servidor Backend (0.0.0.0:3000)
+# Backend server (0.0.0.0:3000)
 cd backend && pnpm dev
 
-# Cliente Frontend (Vite)
+# Frontend client (Vite)
 cd frontend && pnpm dev
 
-# Suite de Pruebas Unitarias (Lógica Financiera y Clasificación)
+# Unit test suite (Financial logic & Classification)
 cd backend && pnpm test
 ```
 
 ---
 
-**Efisco ERP** — *Impulsando la ingeniería automotriz a través de software de alto rendimiento.*
+## 📬 Contact
+efiscosas@gmail.com
+
+Built and maintained by a single developer. Open to feedback, contributions and collaboration.
+---
+
+**Efisco ERP** — *Driving automotive engineering through high-performance software.*
