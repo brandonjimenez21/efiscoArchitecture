@@ -1,8 +1,8 @@
 # Efisco ERP — Automotive Workshop SaaS
 
 > **Ingeniería de software de alta precisión aplicada a la rentabilidad y automatización del sector automotriz.**
- 
-Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en centros operativos inteligentes. A diferencia de un ERP genérico, Efisco integra un **Motor Financiero (Fiscal/Contable)** adaptado a la normativa colombiana de 2026, un **Clasificador de Vehículos** para tarificación dinámica y **OCR con IA** para el control de egresos.
+
+Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en centros operativos inteligentes. Integra un **Motor Financiero (Fiscal/Contable)** adaptado a la normativa colombiana 2026, un **Clasificador de Vehículos** para tarificación dinámica, **OCR con IA** para el control de egresos, y un **Panel de Administración Interno** para la gestión del ecosistema de talleres.
 
 ![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)
 ![Express 5](https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express)
@@ -10,8 +10,6 @@ Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en 
 ![Tailwind v4](https://img.shields.io/badge/Tailwind-v4-06B6D4?style=for-the-badge&logo=tailwind-css)
 ![AWS Textract](https://img.shields.io/badge/OCR-AWS_Textract-FF9900?style=for-the-badge&logo=amazonaws)
 ![Meta API](https://img.shields.io/badge/WhatsApp-Meta_Cloud_API-25D366?style=for-the-badge&logo=whatsapp)
-
-> 🌐 [Read in English](./README.md)
 
 ---
 
@@ -21,6 +19,7 @@ Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en 
 - [Arquitectura](#arquitectura)
 - [Stack Tecnológico](#stack-tecnológico)
 - [Módulos del Sistema](#módulos-del-sistema)
+- [Panel de Administración EFISCO](#panel-de-administración-efisco)
 - [Motor Financiero](#motor-financiero)
 - [Libro Auxiliar (Cash Flow Ledger)](#libro-auxiliar-cash-flow-ledger)
 - [Variables de Entorno](#variables-de-entorno)
@@ -31,23 +30,26 @@ Efisco es una plataforma SaaS diseñada para transformar talleres mecánicos en 
 
 Efisco no es un ERP genérico adaptado al sector automotriz — fue construido desde cero para resolver los problemas reales de los talleres colombianos:
 
-- **Tarificación dinámica** basada en un clasificador de vehículos por segmento (básico / premium)
+- **Tarificación dinámica** basada en clasificador de vehículos por segmento (básico / premium)
 - **Liquidación fiscal precisa** según normativa colombiana 2026: IVA, ReteFuente, ReteICA, ReteIVA, GMF 4×1000
 - **Control de egresos con OCR** — extracción automática de datos de facturas de proveedores vía AWS Textract
 - **Facturación electrónica** integrada con Dataico/DIAN (no bloqueante, guarda CUFE en base de datos)
 - **Comunicación automatizada** con clientes vía WhatsApp Cloud API (Meta)
 - **Multi-tenant** con aislamiento de datos por taller (RLS en Supabase)
 - **Ventas a crédito** con plan de cuotas: INC_GROSS se registra en $0 al liquidar y el ingreso real entra vía pagos de cuotas
-- **Panel de punto de equilibrio** con costos fijos desagregados (arriendo + servicios + nómina) y análisis de capacidad operativa
+- **Panel de equilibrio interactivo** con gráfica SVG hover, proyección what-if con cálculo fiel de margen
+- **IVA por categoría de repuesto** — tasas configurables por las 10 categorías de inventario
+- **Presets PUC colombianos** — 3 regímenes fiscales que auto-rellenan los 21 códigos contables
+- **Panel Admin EFISCO** — gestión interna de talleres, comisiones, referidos y suspensión de acceso
 
 ---
- 
+
 ## Arquitectura
- 
+
 El sistema utiliza una arquitectura **multi-tenant** con aislamiento de datos a nivel de fila (RLS) y un núcleo de cálculo financiero inmutable.
- 
+
 ### 1. Mapa de Componentes y Capas
- 
+
 ```mermaid
 graph LR
     classDef default stroke:#455a64,stroke-width:1px,fill:none;
@@ -56,48 +58,54 @@ graph LR
     classDef database stroke:#212529,stroke-width:2px,fill:none;
     classDef external stroke:#5f3dc4,stroke-width:1.5px,fill:none;
     classDef user stroke:#90a4ae,stroke-width:2px,stroke-dasharray: 5 5,fill:none;
- 
-    User((Usuario)) --> FE[Frontend React 19]
-    FE --> Auth[Middleware: JWT/RLS]
- 
+    classDef admin stroke:#e53935,stroke-width:2px,fill:none;
+
+    User((Taller)) --> FE[Frontend React 19]
+    Admin((EFISCO Admin)) --> AdminFE["/admin Panel"]
+    FE --> Auth[Middleware: JWT/RLS + Suspensión]
+    AdminFE --> AdminAuth[requireAdmin: JWT Separado]
+
     subgraph Core [Backend Core - Express 5]
         Auth --> Ops[Módulo Operativo]
         Auth --> Inv[Módulo Logístico]
         Auth --> Fin[Módulo Financiero]
- 
+        AdminAuth --> AdminCtrl[Admin Controller]
+
         Ops --- VClass[Vehicle Classifier]
         Inv --- OCR[AWS Textract]
         Fin --- FEng[Financial Engine]
     end
- 
+
     subgraph Data [Persistencia - Supabase]
         DB[(PostgreSQL Master)] --> Kardex[[Ledger Inmutable]]
+        DB --> Admins[[efisco_admins]]
     end
- 
+
     subgraph Externals [Servicios Externos]
         WA[WhatsApp API]
         Pay[Pasarelas Bold/Addi]
         DIAN[Dataico DIAN]
     end
- 
-    Ops & Inv & Fin ----> DB
+
+    Ops & Inv & Fin & AdminCtrl ----> DB
     Ops --> WA
     Fin --> Pay
     Fin --> DIAN
- 
+
     class User user;
+    class Admin admin;
     class FE,Auth,Ops,Inv,Fin highlight;
+    class AdminFE,AdminAuth,AdminCtrl admin;
     class VClass,OCR,FEng engine;
-    class DB,Kardex database;
+    class DB,Kardex,Admins database;
     class WA,Pay,DIAN external;
+    class Admin,AdminFE,AdminAuth,AdminCtrl admin;
 ```
- 
+
 ---
- 
+
 ## Ciclo de Vida Operativo (End-to-End)
- 
-Flujo de ejecución completo con gestión de estados y activaciones síncronas.
- 
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -109,7 +117,7 @@ sequenceDiagram
     participant F as Finanzas
     participant EXT as Externos (DIAN/Pay)
     participant DB as Persistencia (DB)
- 
+
     C->>R: Ingreso (Reporte de Fallo)
     activate R
     R->>WA: Notificar al Cliente
@@ -117,7 +125,7 @@ sequenceDiagram
     activate B
     Note over B: El Classifier asigna Tier (Básico/Premium)
     deactivate R
- 
+
     loop Durante el Servicio
         B->>I: Solicitar Repuesto
         activate I
@@ -127,24 +135,24 @@ sequenceDiagram
         deactivate I
         B->>B: Acumular Costos
     end
- 
+
     B->>F: Finalizar y Liquidar
     activate F
     deactivate B
- 
+
     rect rgb(0, 0, 0)
         Note over F, DB: Proceso de Cierre Contable (Fiscal 2026)
         F->>F: Calcular FinancialEngine
         F->>DB: Insertar Movimientos Ledger
         F->>EXT: Emitir Factura & Procesar Pago
     end
- 
+
     F->>C: Vehículo Listo + Factura Digital
     deactivate F
 ```
- 
+
 ---
- 
+
 ## Lógica de Inventario y Kardex Inmutable
  
 Trazabilidad total: cada movimiento físico genera un reflejo contable obligatorio en la base de datos.
@@ -210,22 +218,28 @@ flowchart TD
 |:---|:---|:---|
 | UI | React 19 + Vite | SPA con routing client-side |
 | Estilos | Tailwind CSS v4 | Design system utilitario |
-| Estado | Zustand | Estado global ligero (`useFinancialStore`, `useBillingStore`, `useThemeStore`) |
+| Estado | Zustand | `useFinancialStore`, `useBillingStore`, `useThemeStore`, `useAdminStore` |
 | Backend | Express 5 + Node.js ESM | API REST con async/await nativo |
 | Base de datos | Supabase (PostgreSQL) | Persistencia + RLS multi-tenant |
 | OCR | AWS Textract | Extracción de facturas de proveedores |
 | Comunicaciones | Meta WhatsApp Cloud API | Notificaciones automáticas |
 | Facturación | Dataico | Emisión DIAN electrónica (no bloqueante) |
 | Pasarelas | Bold (físico/online/QR) + Addi (crédito) | Procesamiento de pagos |
+| Crypto | Node.js `crypto.scrypt` | Hash de contraseñas admin (sin bcrypt) |
+| Admin JWT | `jsonwebtoken` con `ADMIN_JWT_SECRET` | Token separado del JWT de talleres |
 
 ---
- 
-## 🔑 Decisiones Técnicas Clave
- 
-- **Multi-tenant con RLS** — El aislamiento por Row Level Security en PostgreSQL garantiza separación total de datos entre talleres sin necesidad de bases de datos independientes.
-- **Ledger Inmutable** — Cada movimiento financiero es append-only. Ningún registro se actualiza ni elimina, garantizando trazabilidad contable completa y auditable.
-- **Pipeline OCR asíncrono** — El procesamiento de facturas de proveedores corre en segundo plano vía AWS Textract, manteniendo la interfaz responsive en todo momento.
-- **Tarificación dinámica por tier** — El Clasificador de Vehículos asigna automáticamente el tier de servicio, permitiendo control de márgenes sin configuración manual por servicio.
+
+## Decisiones Técnicas Clave
+
+- **Multi-tenant con RLS** — Aislamiento por Row Level Security en PostgreSQL sin bases de datos independientes.
+- **Ledger Inmutable** — Cada movimiento financiero es append-only. Trazabilidad contable completa y auditable.
+- **Pipeline OCR asíncrono** — Procesamiento de facturas en segundo plano vía AWS Textract.
+- **Tarificación dinámica por tier** — Clasificador de vehículos asigna el tier automáticamente.
+- **Admin completamente aislado** — JWT separado (`ADMIN_JWT_SECRET`), Zustand store separado (`useAdminStore`), rutas `/admin/*` renderizadas antes del catch-all, localStorage keys distintas (`admin_token`/`admin_user` vs `token`/`user`).
+- **Suspensión en dos capas** — `auth.controller.js` bloquea el login y `auth.middleware.js` invalida tokens ya emitidos, evitando que un token pre-suspensión siga funcionando.
+- **Margen what-if fiel** — El cálculo de proyección usa costo variable absoluto por orden (`varCostPerOrder`), no margen porcentual fijo. Al subir precios, el margen % mejora automáticamente porque los costos de partes no suben.
+
 ---
 
 ## Módulos del Sistema
@@ -248,14 +262,18 @@ flowchart TD
 | `/cobros` | Panel de Cobros | Owner |
 | `/flujo-caja` | Flujo de Caja | Owner |
 | `/cliente/registro/:id` | Registro público del cliente | Público |
+| `/admin` | Panel Admin EFISCO | Admin interno |
+| `/admin/talleres` | Gestión de talleres | Admin interno |
+| `/admin/pagos` | Liquidación de comisiones | Admin interno |
+| `/admin/referidos` | Árbol de referidos | Admin interno |
 
 ---
 
 ### Recepción
 Punto de ingreso de vehículos. Registra cliente, vehículo y síntomas reportados.
 
-- **Clasificación de cliente en 2 niveles**: Persona Natural | Empresa (con sub-régimen: Simple / Ordinario / Gran Contribuyente)
-- El tipo de cliente impacta directamente el cálculo de retenciones en la liquidación de la orden
+- **Clasificación de cliente**: Persona Natural | Empresa con sub-régimen (Simple / Ordinario / Gran Contribuyente)
+- El tipo de cliente impacta directamente el cálculo de retenciones en la liquidación
 - Notificación automática al cliente vía WhatsApp al crear la orden
 - Score de riesgo crediticio visible antes de liquidar (`/api/clients/:cedula/risk-score`)
 
@@ -264,57 +282,42 @@ Punto de ingreso de vehículos. Registra cliente, vehículo y síntomas reportad
 ### Bahías (Órdenes de Trabajo)
 Gestión del trabajo en taller: asignación de técnicos, registro de mano de obra y repuestos.
 
-- Clasificador de vehículos determina el tier de servicio (Básico / Premium) que afecta los márgenes aplicados
-- Consumo de inventario con registro automático en el Kardex; cada ítem guarda su `vat_percentage` (0%, 5% o 19%)
+- Clasificador de vehículos determina el tier de servicio (Básico / Premium)
+- Consumo de inventario con registro automático en el Kardex; cada ítem guarda `vat_percentage` (0%, 5% o 19%)
 - Estado de la orden: `pending → ejecucion → ready_to_invoice → completed`
 - **Modal de Liquidación** con pre-cálculo en vivo:
   - Simulación de comisiones Bold/Addi antes de confirmar
   - Retenciones si el cliente es agente retenedor
   - Modo crédito: selector de cuotas (2/3/4), fecha del primer pago
-- Al liquidar se emite factura a Dataico/DIAN de forma no bloqueante; si tiene éxito guarda `cufe` e `invoice_pdf_url` en `work_orders`
+- Al liquidar se emite factura a Dataico/DIAN de forma no bloqueante; si tiene éxito guarda `cufe` e `invoice_pdf_url`
 
 ---
 
 ### Inventario
 Control de existencias con trazabilidad completa.
 
-- **Kardex inmutable**: cada movimiento (compra, consumo, ajuste) genera una transacción en `inventory_transactions`
-- Integración con módulo de Proveedores: al registrar una compra se actualiza el stock automáticamente si `sync_stock = true`
-- **Alerta de stock mínimo por ítem** (`min_stock_vital`): el badge del dashboard y el color de fila en la tabla usan el umbral individual de cada producto. Si `min_stock_vital` no está configurado en el ítem, aplica un fallback de 5 unidades
-- `getItemHistory` ordena por `requested_at` (no por `created_at`)
-- Los ítems agregados a una orden de trabajo almacenan `vat_percentage` en `service_inventory_items`
+- **Kardex inmutable**: cada movimiento genera una transacción en `inventory_transactions`
+- **IVA por categoría**: al seleccionar la categoría del repuesto, el porcentaje de IVA se aplica automáticamente desde `workshop_config.category_vat_rates`
+- **Alerta de stock mínimo por ítem** (`min_stock_vital`): badge en dashboard y color de fila en tabla
+- `getItemHistory` ordena por `requested_at`
 
 ---
 
 ### Proveedores y Egresos
-Gestión de proveedores y registro de compras con liquidación fiscal de egresos.
+Gestión de proveedores y registro de compras con liquidación fiscal.
 
 - **Perfil tributario del proveedor** (4 regímenes): Persona Natural · Régimen Simple · Régimen Ordinario · Gran Contribuyente
-  - Régimen `simple`: **no aplican retenciones** (ni ReteFuente, ni ReteICA, ni ReteIVA)
-  - Régimen `ordinario` / `gran_contribuyente`: retenciones plenas según UVT (umbral: 27 UVT ≈ $1.358.586)
-  - `is_declarante` del proveedor determina la tasa de ReteFuente (declarante = `supplier_retefuente_rate`, no declarante = tasa × 1.4)
-- **Tasa de ReteICA por proveedor** (`reteica_rate_supplier` en la tabla `providers`): si está definida se usa en lugar de la tasa general del taller
-- **OCR de facturas**: sube imagen → AWS Textract extrae proveedor, ítems, valores
-- **Método de pago del taller**:
-  - `banco` — activa opción de GMF 4×1000 → genera asiento `TAX_GMF`
-  - `tarjeta` — campo para registrar costo de la transacción → genera asiento `CARD_FEE`
-  - `efectivo` — sin costos financieros adicionales
-- **Código PUC por proveedor** (`puc_account_expense`): si está definido en el proveedor, se usa en el asiento del ledger en lugar del código global (`puc_inventory_purchase_code` o fallback `'1435'`)
-- Comprobante de pago generado en pantalla con desglose completo
-
----
-
-### Finanzas — Dashboard Financiero (`/finanzas`)
-Vista consolidada de rentabilidad operativa.
-
-- Margen neto, ingresos brutos, costos fijos (arriendo + servicios públicos + **nómina**)
-- Alertas de stock usando `min_stock_vital` por ítem
-- `calculateGlobalHealth` incluye `GW_FEE`, `GW_VAT`, `TAX_GMF` y `CARD_FEE` como egresos reales (antes solo `SUP_PAY`)
+  - `simple`: no aplican retenciones
+  - `ordinario` / `gran_contribuyente`: retenciones plenas según UVT (27 UVT ≈ $1.358.586)
+- **Tasa de ReteICA por proveedor** (`reteica_rate_supplier`)
+- **OCR de facturas**: AWS Textract extrae proveedor, ítems, valores
+- **Método de pago**: `banco` → GMF 4×1000 | `tarjeta` → costo de transacción | `efectivo` → sin costos
+- **Código PUC por proveedor** (`puc_account_expense`): usado en asiento del ledger si está definido
 
 ---
 
 ### Panel de Equilibrio (`/equilibrio`)
-Análisis de punto de equilibrio y capacidad operativa del taller.
+Análisis de punto de equilibrio, capacidad operativa y proyección de escenarios.
 
 ```
 Costos Fijos = arriendo + servicios públicos + nómina (fixed_costs_salaries)
@@ -322,9 +325,19 @@ Margen de Contribución = ingresos netos / ingresos brutos
 Punto de Equilibrio = costos fijos / margen de contribución
 ```
 
-- Si no hay ingresos en el período, `margen_contribucion` y `punto_equilibrio` retornan `null` (sin mostrar valor ficticio)
-- Métricas adicionales: horas disponibles/trabajadas, tarifa-hora, ingresos potenciales (`ip`)
-- Requiere la columna `workshop_config.fixed_costs_salaries` (ver migraciones)
+**Gráfica SVG interactiva:**
+- Hover con crosshair vertical que sigue el cursor
+- Tooltip en tiempo real mostrando ingresos, costo total y ganancia/pérdida en ese punto
+- Eje X con cantidad de órdenes equivalente a cada nivel de ingreso
+- Zonas de pérdida (roja) y ganancia (verde) con relleno semitransparente
+- Puntos "PE" (ámbar) y "Hoy" (azul) siempre visibles
+
+**Proyección What-if (cálculo fiel):**
+- Los costos variables son **absolutos por orden** (precio de partes), no porcentuales
+- Al subir precios, el margen % mejora automáticamente: `wiMarginPct = (wiRevenue − varCosts) / wiRevenue`
+- El nuevo PE se recalcula con el margen proyectado: `wiPE = wiFixedCosts / wiMarginPct`
+- Panel de resultado muestra comparativa lado a lado: órdenes actuales vs proyectadas, costos fijos actuales vs proyectados
+- El hint de órdenes necesarias usa contribución neta por orden: `ceil(wiGap / (wiTicket − varCostPerOrder))`
 
 ---
 
@@ -332,26 +345,23 @@ Punto de Equilibrio = costos fijos / margen de contribución
 Gestión de cuentas por cobrar — ventas a crédito e installments.
 
 - Lista de cuotas pendientes con fecha de vencimiento
-- Registro de pago de cuota: llama a `POST /api/billing/installment/:id/pay`
-  - Genera asiento `INC_GROSS` con `net_amount = inst.amount` y PUC `puc_income_code || '4135'`
-  - Notificación al cliente vía WhatsApp al registrar cada abono
+- Registro de pago: genera asiento `INC_GROSS` con PUC `puc_income_code || '4135'`
+- Notificación al cliente vía WhatsApp al registrar cada abono
 
 ---
 
 ### Flujo de Caja (`/flujo-caja`)
-Libro mayor de todos los movimientos financieros del taller.
+Libro mayor de todos los movimientos financieros.
 
-- Filtro por rango de fechas (por defecto: mes actual)
-- Filtro por tipo de impacto (`CREDIT` / `DEBIT` / Todos)
-- Agrupación por día con subtotales diarios de créditos y débitos
+- Filtro por rango de fechas y tipo de impacto (CREDIT / DEBIT / Todos)
+- Agrupación por día con subtotales diarios
 - Balance acumulado por movimiento (`running_balance`)
-- Etiquetas completas para todos los tipos del ledger (ver tabla en sección [Libro Auxiliar](#libro-auxiliar-cash-flow-ledger))
 - Descarga CSV vía `/api/finance/report/ledger`
 
 ---
 
 ### Referidos
-Sistema de referidos entre talleres con descuentos acumulados por suscripciones activas referidas.
+Sistema de referidos entre talleres con descuentos acumulados.
 
 | Suscripciones referidas | Descuento aplicado |
 |:---:|:---|
@@ -363,20 +373,13 @@ Sistema de referidos entre talleres con descuentos acumulados por suscripciones 
 ---
 
 ### Configuración del Taller (`/config`)
-Panel de administración fiscal y operativa del taller. Cinco pestañas:
+Panel de administración fiscal y operativa. Cinco pestañas:
 
-**1. Datos del Taller**
-- Nombre, dirección, barrio
-- Horarios (apertura, cierre, almuerzo, fines de semana, festivos)
-- Costos fijos: arriendo y servicios públicos
+**1. Datos del Taller** — Nombre, dirección, horarios, costos fijos (arriendo + servicios)
 
-**2. Mi Equipo & Roles**
-- Alta de empleados (mecánico / admin)
-- Esquemas de compensación: salario fijo, comisión variable, híbrido
-- Creación de credenciales de acceso al sistema
+**2. Mi Equipo & Roles** — Alta de empleados, esquemas de compensación (fijo / comisión / híbrido)
 
-**3. Catálogo de Servicios**
-- CRUD de servicios con márgenes básico/premium por tipo de vehículo
+**3. Catálogo de Servicios** — CRUD con márgenes básico/premium por tipo de vehículo
 
 **4. Pasarelas y Finanzas**
 
@@ -388,24 +391,20 @@ Panel de administración fiscal y operativa del taller. Cinco pestañas:
 | Régimen Ordinario | ✓ | ✗ | ✓ |
 | Gran Contribuyente | ✓ | ✗ | ✓ |
 
-*Tasas de retención configurables*:
-- IVA (default 19%)
-- ReteICA (por mil, default 0.966‰)
-- ReteFuente compras declarantes (default 2.5%)
-- ReteFuente compras no declarantes (default 3.5%)
-- ReteIVA (default 15%)
+*Tasas configurables*: IVA (19%), ReteICA (‰), ReteFuente declarantes/no declarantes, ReteIVA (15%)
 
-*Pasarelas*:
-- Bold físico (default 2.99%)
-- Bold online (default 3.49%)
-- Addi (default 10.5%)
-- GMF 4×1000 activable por pago
+*Pasarelas*: Bold físico (2.99%), Bold online (3.49%), Addi (10.5%), GMF 4×1000
 
 **5. Módulo del Contador**
 
-*Identidad Legal*: NIT, Razón Social, Prefijo de factura, Clave técnica DIAN
+*Identidad Legal*: NIT, Razón Social, Prefijo, Clave técnica DIAN
 
-*Plan Único de Cuentas (PUC) — 21 códigos en 5 bloques*:
+*Presets PUC* — 3 botones que auto-rellenan los 21 códigos según régimen:
+- **Régimen Ordinario** (estándar DIAN)
+- **Régimen Simple** (subcuentas simplificadas)
+- **Gran Contribuyente** (subcuentas retención en la fuente)
+
+*Plan Único de Cuentas — 21 códigos en 5 bloques*:
 
 | Bloque | Códigos | Defaults |
 |:---|:---|:---|
@@ -415,9 +414,58 @@ Panel de administración fiscal y operativa del taller. Cinco pestañas:
 | Retenciones a Favor | `puc_anticipo_retefuente_code`, `puc_anticipo_reteica_code`, `puc_pasarela_retencion_code` | `135515`, `135518`, `135595` |
 | Control Financiero | `puc_cxc_clientes_code`, `puc_cxp_proveedores_code`, `puc_otros_ingresos_code`, `puc_gastos_financieros_code` | `130505`, `220505`, `4210`, `5305` |
 
+*IVA por Categoría de Repuesto* — 10 categorías con tasa individual configurada que se aplica automáticamente al seleccionar categoría en Inventario.
+
 *Exportación contable*: CSV de facturas, compras a proveedores, CxC, CxP, libro fiscal e inventario valorizado.
 
-*Integración Dataico*: configuración de API key, authtoken, environment (test/prod) y rango de numeración con botón de prueba de conexión.
+*Integración Dataico*: API key, authtoken, environment (test/prod), rango de numeración, botón de prueba de conexión.
+
+---
+
+## Panel de Administración EFISCO
+
+Panel interno en `/admin` con autenticación completamente separada de los talleres.
+
+### Autenticación admin
+- JWT firmado con `ADMIN_JWT_SECRET` (distinto al JWT de Supabase de los talleres)
+- Hash de contraseñas con `crypto.scrypt` + sal de 16 bytes (sin dependencias externas)
+- Bootstrap: `POST /api/admin/bootstrap` — solo funciona si `efisco_admins` está vacío
+- Token almacenado en `admin_token` (localStorage), distinto de `token` de talleres
+
+### Módulos del panel admin
+
+**Dashboard** — 4 KPIs: talleres activos/totales, órdenes del mes, ingresos brutos del mes, pagos de comisiones pendientes.
+
+**Talleres** — Lista paginada y buscable de todos los talleres:
+- Ver configuración completa (grid de 9 campos)
+- Crear taller nuevo (crea usuario Supabase Auth + `workshop_config` en transacción)
+- **Suspender / Reactivar** — `PATCH /api/admin/workshops/:id/toggle` actualiza `is_active` en `workshop_config`
+  - La suspensión bloquea el login (`auth.controller.js`) Y los requests en curso (`auth.middleware.js`)
+  - El taller suspendido ve una pantalla de "Cuenta suspendida" con canales de contacto
+
+**Pagos** — Gestión de solicitudes de pago de comisiones por referidos:
+- Filtros: pendiente / en proceso / pagado
+- KPIs por estado
+- `PATCH /api/admin/payouts/:id/mark-paid`
+
+**Referidos** — Árbol jerárquico recursivo de referidos con colapso/expansión:
+- Colores por nivel: gris (0), azul (1-2), púrpura (Platino: 3+)
+- KPIs: total nodos, referidores activos, Platinos, comisiones totales
+
+### Rutas API admin
+
+| Método | Ruta | Auth | Descripción |
+|:---|:---|:---:|:---|
+| POST | `/api/admin/bootstrap` | Pública | Crea primer admin (solo si tabla vacía) |
+| POST | `/api/admin/login` | Pública | Login admin con email/password |
+| GET | `/api/admin/stats` | Admin | KPIs del dashboard |
+| GET | `/api/admin/workshops` | Admin | Lista talleres (con emails de Supabase Auth) |
+| GET | `/api/admin/workshops/:id` | Admin | Detalle de taller |
+| POST | `/api/admin/workshops` | Admin | Crear taller nuevo |
+| PATCH | `/api/admin/workshops/:id/toggle` | Admin | Suspender / reactivar |
+| GET | `/api/admin/payouts` | Admin | Lista de solicitudes de pago |
+| PATCH | `/api/admin/payouts/:id/mark-paid` | Admin | Marcar pago como completado |
+| GET | `/api/admin/referrals` | Admin | Árbol de referidos |
 
 ---
 
@@ -432,31 +480,28 @@ Base Impositiva = Mano de Obra × (1 + margen%) + Repuestos (con margen)
 IVA             = Base × vat_percentage            (si is_responsable_iva)
 Total Factura   = Base + IVA
 
-Si el cliente es agente retenedor (clientIsRetainer):
-  ReteFuente = Base × retefuente_rate_declarante   (del config del taller)
-  ReteICA    = Base × (reteica_rate / 1000)        (por mil, no por ciento)
+Si clientIsRetainer:
+  ReteFuente = Base × retefuente_rate_declarante
+  ReteICA    = Base × (reteica_rate / 1000)
   ReteIVA    = IVA  × reteiva_rate
 
-Pasarela Bold (presencial):
-  tarjeta_nacional     → 2.99% + $300 fijo
-  tarjeta_internacional → 3.99% + $300 fijo
-  qr_billetera         → 1.50% (sin fijo)
+Pasarela Bold presencial:
+  tarjeta_nacional     → 2.99% + $300
+  tarjeta_internacional → 3.99% + $300
+  qr_billetera         → 1.50%
 
-Pasarela Bold (online):
-  tarjeta_nacional     → 3.49% + $900 fijo
-  tarjeta_internacional → 4.49% + $900 fijo
+Pasarela Bold online:
+  tarjeta_nacional     → 3.49% + $900
+  tarjeta_internacional → 4.49% + $900
   qr_billetera         → 1.50%
 
 Pasarela Addi: gateway_addi_rate / 100
-
 IVA sobre comisión = Comisión × 0.19
 
 Net Cash Inflow = Total − ReteFuente − ReteICA − ReteIVA − Comisión − IVA comisión
 ```
 
-**Venta a crédito** (`payment_mode = 'credito'` y `num_installments > 1`):
-- Al liquidar: `INC_GROSS.net_amount = 0`, PUC usa `puc_cxc_clientes_code || '1305'` (Cuentas por Cobrar)
-- Los ingresos reales entran al ledger vía `payInstallment` con `INC_GROSS.net_amount = cuota.amount` y PUC `puc_income_code || '4135'`
+**Venta a crédito**: `INC_GROSS.net_amount = 0` al liquidar; ingresos reales entran vía `payInstallment`.
 
 ---
 
@@ -466,38 +511,28 @@ Net Cash Inflow = Total − ReteFuente − ReteICA − ReteIVA − Comisión −
 Base          = total_gross_cost / (1 + 0.19)
 IVA de Compra = total_gross_cost − Base
 
-Retenciones (solo si base ≥ 27 UVT Y régimen del proveedor ≠ 'simple'):
-  ReteFuente:
-    is_declarante = true  → Base × supplier_retefuente_rate       (config)
-    is_declarante = false → Base × supplier_retefuente_rate × 1.4 (aprox. tasa no declarante)
-  ReteICA:
-    si proveedor.reteica_rate_supplier está definido:
-      Base × (proveedor.reteica_rate_supplier / 1000)
-    si no:
-      Base × (config.supplier_reteica_rate / 1000 || 0.00966)
-  ReteIVA = IVA × 0.15
+Retenciones (base ≥ 27 UVT AND proveedor ≠ 'simple'):
+  ReteFuente: declarante → Base × supplier_retefuente_rate
+              no declarante → Base × supplier_retefuente_rate × 1.4
+  ReteICA:   Base × (reteica_rate_supplier ?? config.supplier_reteica_rate / 1000)
+  ReteIVA:   IVA × 0.15
 
-GMF 4×1000 (solo payment_method='banco' y apply_4x1000=true):
+GMF (payment_method='banco' AND apply_4x1000=true):
   GMF = total_gross_cost × 0.004
 
 Net Outflow = total_gross_cost − ReteFuente − ReteICA − GMF
 ```
-
-**Régimen Simple del proveedor**: omite completamente ReteFuente, ReteICA y ReteIVA.
 
 ---
 
 ### 3. Salud financiera global (`calculateGlobalHealth`)
 
 ```
-totalInflows  = Σ net_amount de INC_GROSS (CREDIT)
-              + Σ amount de NON_OP_INC (CREDIT)
-              + Σ amount de VAT_REFUND (CREDIT)
-
-totalOutflows = Σ net_amount de SUP_PAY + GW_FEE + GW_VAT + TAX_GMF + CARD_FEE (DEBIT)
+totalInflows  = Σ INC_GROSS (CREDIT) + NON_OP_INC + VAT_REFUND
+totalOutflows = Σ SUP_PAY + GW_FEE + GW_VAT + TAX_GMF + CARD_FEE (DEBIT)
 
 bankBalance     = totalInflows − totalOutflows
-ivaLiability    = Σ TAX_IVA (CREDIT) − Σ RET_IVA (DEBIT) − Σ VAT_REFUND
+ivaLiability    = Σ TAX_IVA − Σ RET_IVA − Σ VAT_REFUND
 realBankBalance = bankBalance − ivaLiability
 ```
 
@@ -505,32 +540,18 @@ realBankBalance = bankBalance − ivaLiability
 
 ## Libro Auxiliar (Cash Flow Ledger)
 
-`cash_flow_ledger` — registro doble de todos los movimientos del taller.
-
-### Campos principales
-
-| Campo | Descripción |
-|:---|:---|
-| `type` | Tipo de movimiento (ver tabla abajo) |
-| `impact` | `CREDIT` (entrada) o `DEBIT` (salida) |
-| `amount` | Valor bruto del movimiento (total factura) |
-| `gross_amount` | Base antes de IVA |
-| `net_amount` | Dinero efectivamente recibido o pagado |
-| `puc_code` | Código PUC para exportación contable |
-| `running_balance` | Saldo acumulado en el período |
-
 ### Tipos de movimiento
 
 | Tipo | Impacto | Descripción |
 |:---|:---:|:---|
-| `INC_GROSS` | CREDIT | Ingreso por servicio (net_amount = 0 en ventas a crédito) |
+| `INC_GROSS` | CREDIT | Ingreso por servicio (net_amount = 0 en crédito) |
 | `TAX_IVA` | CREDIT | IVA generado en la venta |
 | `RET_FUENT` | DEBIT | ReteFuente practicada por el cliente |
 | `RET_ICA` | DEBIT | ReteICA practicada por el cliente |
 | `RET_IVA` | DEBIT | ReteIVA practicada por el cliente |
 | `GW_FEE` | DEBIT | Comisión de pasarela (Bold / Addi) |
 | `GW_VAT` | DEBIT | IVA sobre comisión de pasarela |
-| `SUP_PAY` | DEBIT | Pago a proveedor (compra de repuestos) |
+| `SUP_PAY` | DEBIT | Pago a proveedor |
 | `TAX_GMF` | DEBIT | GMF 4×1000 en pagos bancarios |
 | `CARD_FEE` | DEBIT | Costo de transacción con tarjeta |
 | `NON_OP_INC` | CREDIT | Ingreso no operacional (manual) |
@@ -543,15 +564,18 @@ realBankBalance = bankBalance − ivaLiability
 
 ## Variables de Entorno
 
-`backend/.env.example`:
+`backend/.env`:
 
 ```env
 # Supabase
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 
-# JWT
-JWT_SECRET=<secret-aleatorio-seguro>
+# JWT talleres (Supabase)
+JWT_SECRET=<secret>
+
+# JWT admin interno EFISCO (separado)
+ADMIN_JWT_SECRET=<secret-admin>
 
 # AWS Textract (OCR)
 AWS_ACCESS_KEY_ID=<key>
@@ -571,9 +595,9 @@ DATAICO_BASE_URL=https://app.dataico.com/api/2
 
 ## 📬 Contacto
 efiscosas@gmail.com
- 
-Desarrollado y mantenido por un solo desarrollador. Abierto a feedback, contribuciones y colaboración.
- 
+
+Desarrollado y mantenido por un solo desarrollador.
+
 ---
- 
+
 **Efisco ERP** — *Impulsando la ingeniería automotriz a través de software de alto rendimiento.*
